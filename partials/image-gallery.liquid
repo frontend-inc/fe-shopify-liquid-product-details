@@ -3,6 +3,7 @@
 <div
   class="flex flex-col-reverse md:flex-row gap-4"
   x-data="imageGallery({ images: {{ product.images | json }} })"
+  @variant:image.window="selectImage($event.detail.index)"
 >
   <!-- Thumbnails -->
   <div class="flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto md:max-h-[500px] pb-2 md:pb-0 md:pr-2">
@@ -25,7 +26,7 @@
 
   <!-- Main Image -->
   <div class="flex-1 relative">
-    <div class="aspect-square rounded-xl overflow-hidden bg-muted">
+    <div class="aspect-square rounded-xl overflow-hidden bg-muted border border-border">
       {% for image in product.images %}
         <img
           src="{{ image.src }}"
