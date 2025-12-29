@@ -1,0 +1,29 @@
+<section class="py-16">
+  <div class="container mx-auto px-4">
+    {% if title %}
+      <h2 class="text-3xl font-heading font-semibold text-center mb-10">
+        {{ title }}
+      </h2>
+    {% endif %}
+
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {% for product in products limit: 8 %}
+        {% render 'partials/product-card', product: product %}
+      {% else %}
+        <div class="col-span-full text-center py-10 text-muted-foreground">
+          No products found
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="text-center mt-10">
+      <a
+        href="{{ collection_url | default: '/collections/all' }}"
+        class="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+      >
+        View All
+        <i class="ri-arrow-right-line"></i>
+      </a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,278 @@
+{% comment %}
+  Product Details Section
+  Renders a complete product details page with image gallery, variant selection, and add to cart.
+  Uses the { product } liquid variable.
+{% endcomment %}
+
+{% assign show_vendor = show_vendor | default: true %}
+{% assign show_share = show_share | default: true %}
+{% assign show_buy_now = show_buy_now | default: true %}
+
+<section
+  class="container mx-auto px-4 py-8 md:py-16"
+  x-data="productDetails({
+    product: {{ product | json }},
+    initialVariantId: {{ product.selected_or_first_available_variant.id | default: product.variants.first.id }}
+  })"
+  data-product-id="{{ product.id }}"
+>
+  <!-- Breadcrumb -->
+  <nav class="mb-8 text-sm" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-2 text-muted-foreground">
+      <li><a href="/" class="hover:text-foreground transition-colors">Home</a></li>
+      <li><i class="ri-arrow-right-s-line"></i></li>
+      {% if product.collections.size > 0 %}
+        <li><a href="{{ product.collections.first.url }}" class="hover:text-foreground transition-colors">{{ product.collections.first.title }}</a></li>
+        <li><i class="ri-arrow-right-s-line"></i></li>
+      {% endif %}
+      <li class="text-foreground font-medium truncate max-w-[200px]">{{ product.title }}</li>
+    </ol>
+  </nav>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
+    <!-- Image Gallery -->
+    <div class="lg:sticky lg:top-24 lg:self-start">
+      {% render 'partials/image-gallery', product: product %}
+    </div>
+
+    <!-- Product Information -->
+    <div class="space-y-6">
+      <!-- Vendor -->
+      {% if show_vendor and product.vendor %}
+        <a href="/collections/vendors?q={{ product.vendor | url_encode }}" class="text-sm text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors">
+          {{ product.vendor }}
+        </a>
+      {% endif %}
+
+      <!-- Title -->
+      <h1 class="text-3xl md:text-4xl font-heading font-semibold leading-tight">{{ product.title }}</h1>
+
+      <!-- Price -->
+      <div class="flex items-baseline gap-3 flex-wrap">
+        <span class="text-2xl md:text-3xl font-semibold" x-text="ShopifyAPI.formatMoney(currentPrice)">
+          {{ product.price | money }}
+        </span>
+        <template x-if="currentComparePrice > currentPrice">
+          <span class="text-lg text-muted-foreground line-through" x-text="ShopifyAPI.formatMoney(currentComparePrice)">
+            {{ product.compare_at_price | money }}
+          </span>
+        </template>
+        <template x-if="currentComparePrice > currentPrice">
+          <span class="text-sm font-medium text-destructive bg-destructive/10 px-2.5 py-1 rounded-full">
+            Save <span x-text="Math.round((1 - currentPrice / currentComparePrice) * 100)"></span>%
+          </span>
+        </template>
+      </div>
+
+      <!-- Availability -->
+      <div class="flex items-center gap-2">
+        <template x-if="selectedVariant?.available">
+          <span class="inline-flex items-center gap-2 text-sm text-green-600">
+            <span class="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+            In Stock
+          </span>
+        </template>
+        <template x-if="selectedVariant && !selectedVariant.available">
+          <span class="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <span class="w-2 h-2 bg-muted-foreground rounded-full"></span>
+            Out of Stock
+          </span>
+        </template>
+      </div>
+
+      <!-- Short Description -->
+      {% if product.description != blank %}
+        <p class="text-muted-foreground leading-relaxed">
+          {{ product.description | strip_html | truncatewords: 25 }}
+        </p>
+      {% endif %}
+
+      <hr class="border-border">
+
+      <!-- Variant Selector -->
+      {% if product.has_only_default_variant == false %}
+        {% render 'partials/variant-selector', product: product %}
+        <hr class="border-border">
+      {% else %}
+        <!-- Quantity only for single variant products -->
+        <div class="space-y-3">
+          <label class="text-sm font-medium">Quantity</label>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="w-11 h-11 rounded-lg border border-border flex items-center justify-center hover:bg-accent transition-colors disabled:opacity-50"
+              @click="quantity = Math.max(1, quantity - 1)"
+              :disabled="quantity <= 1"
+              aria-label="Decrease quantity"
+            >
+              <i class="ri-subtract-line"></i>
+            </button>
+            <input
+              type="number"
+              class="w-16 h-11 text-center rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              x-model.number="quantity"
+              min="1"
+              max="99"
+            >
+            <button
+              type="button"
+              class="w-11 h-11 rounded-lg border border-border flex items-center justify-center hover:bg-accent transition-colors"
+              @click="quantity = Math.min(99, quantity + 1)"
+              aria-label="Increase quantity"
+            >
+              <i class="ri-add-line"></i>
+            </button>
+          </div>
+        </div>
+        <hr class="border-border">
+      {% endif %}
+
+      <!-- Add to Cart -->
+      <div class="space-y-3">
+        <button
+          type="button"
+          class="w-full h-14 bg-primary text-primary-foreground rounded-lg font-medium transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
+          @click="addToCart"
+          :disabled="loading || !selectedVariant?.available"
+        >
+          <template x-if="loading && !added">
+            <span class="flex items-center gap-2">
+              <i class="ri-loader-4-line animate-spin"></i>
+              Adding...
+            </span>
+          </template>
+          <template x-if="added">
+            <span class="flex items-center gap-2">
+              <i class="ri-check-line"></i>
+              Added to Cart
+            </span>
+          </template>
+          <template x-if="!loading && !added && selectedVariant?.available">
+            <span class="flex items-center gap-2">
+              <i class="ri-shopping-bag-line"></i>
+              Add to Cart
+            </span>
+          </template>
+          <template x-if="!loading && !added && !selectedVariant?.available">
+            <span>Sold Out</span>
+          </template>
+        </button>
+
+        {% if show_buy_now %}
+          <button
+            type="button"
+            class="w-full h-14 bg-secondary text-secondary-foreground rounded-lg font-medium transition-all hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
+            @click="buyNow"
+            :disabled="loading || !selectedVariant?.available"
+          >
+            <i class="ri-flashlight-line"></i>
+            Buy Now
+          </button>
+        {% endif %}
+
+        <!-- Error Message -->
+        <p
+          class="text-sm text-destructive text-center"
+          x-show="error"
+          x-text="error"
+          x-transition
+        ></p>
+      </div>
+
+      <!-- Trust Badges -->
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-muted-foreground py-2">
+        <span class="flex items-center gap-2">
+          <i class="ri-truck-line text-lg"></i>
+          Free shipping over $50
+        </span>
+        <span class="flex items-center gap-2">
+          <i class="ri-refresh-line text-lg"></i>
+          30-day returns
+        </span>
+        <span class="flex items-center gap-2">
+          <i class="ri-shield-check-line text-lg"></i>
+          Secure checkout
+        </span>
+      </div>
+
+      <!-- Product Description Accordion -->
+      {% if product.description != blank %}
+        <div class="border-t border-border pt-6" x-data="{ open: true }">
+          <button
+            type="button"
+            class="w-full flex items-center justify-between py-3 text-left group"
+            @click="open = !open"
+          >
+            <span class="font-medium text-lg">Description</span>
+            <i class="ri-arrow-down-s-line text-xl transition-transform text-muted-foreground group-hover:text-foreground" :class="open && 'rotate-180'"></i>
+          </button>
+          <div class="overflow-hidden" x-show="open" x-collapse>
+            <div class="prose prose-sm max-w-none py-4 text-muted-foreground leading-relaxed">
+              {{ product.description }}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Share Buttons -->
+      {% if show_share %}
+        <div class="border-t border-border pt-6">
+          <div class="flex items-center gap-4">
+            <span class="text-sm text-muted-foreground">Share:</span>
+            <div class="flex items-center gap-1">
+              <a
+                href="https://www.facebook.com/sharer/sharer.php?u={{ product.url | prepend: shop.url }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-2.5 hover:bg-accent rounded-lg transition-colors"
+                aria-label="Share on Facebook"
+              >
+                <i class="ri-facebook-fill text-lg"></i>
+              </a>
+              <a
+                href="https://twitter.com/intent/tweet?url={{ product.url | prepend: shop.url }}&text={{ product.title | url_encode }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-2.5 hover:bg-accent rounded-lg transition-colors"
+                aria-label="Share on Twitter"
+              >
+                <i class="ri-twitter-x-fill text-lg"></i>
+              </a>
+              <a
+                href="https://pinterest.com/pin/create/button/?url={{ product.url | prepend: shop.url }}&media={{ product.featured_image | image_url: width: 1200 }}&description={{ product.title | url_encode }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-2.5 hover:bg-accent rounded-lg transition-colors"
+                aria-label="Share on Pinterest"
+              >
+                <i class="ri-pinterest-fill text-lg"></i>
+              </a>
+              <button
+                type="button"
+                class="p-2.5 hover:bg-accent rounded-lg transition-colors"
+                @click="copyLink(); $el.querySelector('i').classList.replace('ri-link', 'ri-check-line'); setTimeout(() => $el.querySelector('i').classList.replace('ri-check-line', 'ri-link'), 1500)"
+                aria-label="Copy link"
+              >
+                <i class="ri-link text-lg"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Tags -->
+      {% if product.tags.size > 0 %}
+        <div class="flex flex-wrap gap-2 pt-4">
+          {% for tag in product.tags limit: 8 %}
+            <a
+              href="/collections/all/{{ tag | handleize }}"
+              class="text-xs px-3 py-1.5 bg-secondary text-secondary-foreground rounded-full hover:bg-secondary/80 transition-colors"
+            >
+              {{ tag }}
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
